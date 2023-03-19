@@ -7,7 +7,7 @@ os.environ['SITK_SHOW_COMMAND'] ="C:/Users/miacr/fiji-win64/Fiji.app/ImageJ-win6
 
 reader = sitk.ImageSeriesReader()
 #Path de les imatges DICOM + lector de una succesió de diapositives
-dicom_names = reader.GetGDCMSeriesFileNames("C:/Users/miacr/OneDrive/Documentos/TFG/manifest-1676659403087/HCC-TACE-Seg/HCC_001/04-21-2000-NA-CT ABDPEL WC-49771/3.000000-Recon 2 PRE LIVER-07012"
+dicom_names = reader.GetGDCMSeriesFileNames("C:/Users/miacr/OneDrive/Documentos/TFG/Dades/HCC_003/09-12-1997-NA-AP LIVER-64595/300.000000-Segmentation-45632"
 )
 reader.SetFileNames(dicom_names)
 image = reader.Execute()
