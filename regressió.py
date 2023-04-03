@@ -1,5 +1,5 @@
 from sklearn import linear_model
-from feature_data import feature_data,get_seg_ct_filepath,feature_extractor
+from Extraccio_dades.feature_data import feature_data,get_seg_ct_filepath,feature_extractor
 from predict_feature import predict_feature
 import pandas
 from sklearn.metrics import mean_squared_error, r2_score
