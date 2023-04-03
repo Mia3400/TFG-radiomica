@@ -1,8 +1,15 @@
 import pandas
 
-df = pandas.read_excel("C:/Users/miacr/OneDrive/Documentos/TFG/HCC-TACE-Seg_clinical_data-V2.xlsx")
-predict_feature = df.loc[:,["TCIA_ID","OS"]].set_index('TCIA_ID')
-print(predict_feature)
+
+def predict_feature(path_clinical_data, names):
+    predict = []
+    clinical_data = pandas.read_excel(path_clinical_data)
+    for i in range (0,len(clinical_data)):
+        if clinical_data.loc[i,"TCIA_ID"] in names:
+            predict.append(clinical_data.loc[i,["TCIA_ID","OS"]])
+    predict_data = pandas.DataFrame(predict).set_index("TCIA_ID")
+    return predict_data
+
 
 #                  OS
 # TCIA_ID
