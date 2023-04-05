@@ -43,18 +43,19 @@ def get_seg_ct_filepath(name,df):
     dates = list(set(patient.loc[:,"Study Description"].values))
     min_date = min([datetime.strptime(date, '%m-%d-%Y') for date in dates])
     date =min_date.strftime('%m-%d-%Y')
-    if len(patient[patient["Study Date"].isin(["Segmentation"])]) == 0 or len(patient[patient["Study Date"].isin(["Recon 2 LIVER 3 PHASE AP"])]) == 0:
+    if len(patient[(patient["Study Description"] == date) & (patient["Study Date"]== "Segmentation")]) == 0:
         return None
-    else:
-        selected_rows = patient[(patient["Study Description"] == date) & (patient["Study Date"].isin(["Recon 2 LIVER 3 PHASE AP", "Segmentation"]))]
-        if selected_rows.empty:
-            return None
-        return selected_rows.loc[:,["File Location", "Data Description URI","Study Date"]]
+    if  len(patient[(patient["Study Description"] == date) & (patient["Study Date"].isin(["Recon 2 LIVER 3 PHASE AP", "Recon 2 LIVER 3 PHASE CAP","Recon 2 LIVER 2PHASE CAP"]))])==0:
+        return None
+    selected_rows = patient[(patient["Study Description"] == date) & (patient["Study Date"].isin(["Recon 2 LIVER 3 PHASE CAP","Recon 2 LIVER 3 PHASE AP","Recon 2 LIVER 2PHASE CAP", "Segmentation"]))]
+    if selected_rows.empty:
+        return None
+    return selected_rows.loc[:,["File Location", "Data Description URI","Study Date"]]
     
 def feature_extractor(filepath,path_data):
     name = path_data.loc[:,"Data Description URI"].values[0]
     seg_location = (path_data[path_data["Study Date"] == "Segmentation"]).loc[:,"File Location"].values[0]
-    image_location = (path_data[path_data["Study Date"] == "Recon 2 LIVER 3 PHASE AP"]).loc[:,"File Location"].values[0]
+    image_location = (path_data[path_data["Study Date"].isin(["Recon 2 LIVER 3 PHASE AP","Recon 2 LIVER 3 PHASE CAP", "Recon 2 LIVER 2PHASE CAP"])]).loc[:,"File Location"].values[0]
 
     image_file = os.path.join(filepath,image_location)
     seg_file = os.path.normpath(os.path.join(filepath,seg_location,"1-1.dcm"))

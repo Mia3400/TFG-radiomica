@@ -16,6 +16,7 @@ reader = sitk.ImageSeriesReader()
 dicom_names = reader.GetGDCMSeriesFileNames("C:/Users/miacr/OneDrive/Documentos/TFG/Dades/manifest-1678029820376/HCC-TACE-Seg/HCC_004/10-06-1997-NA-LIVERPELVIS-14785/4.000000-Recon 2 LIVER 3 PHASE AP-69759")
 reader.SetFileNames(dicom_names)
 image = reader.Execute()
+image_array =  sitk.GetArrayFromImage(image).astype(float)
 
 seg_path= sitk.ReadImage("C:/Users/miacr/OneDrive/Documentos/TFG/Dades/manifest-1678029820376/HCC-TACE-Seg/HCC_004/10-06-1997-NA-LIVERPELVIS-14785/300.000000-Segmentation-39561/1-1.dcm")
 
@@ -37,7 +38,7 @@ seg = sitk.GetImageFromArray(seg_red)
 extractor = featureextractor.RadiomicsFeatureExtractor(geometryTolerance = 1000)
 extractor.disableAllFeatures()
 extractor.enableFeatureClassByName('firstorder') 
-features =extractor.execute(image, seg)
+features =extractor.execute(image_array, seg_red)
 for key, value in dict(features).items():
     if  "firstorder" not in key:
         del features[key]
