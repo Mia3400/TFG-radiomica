@@ -1,11 +1,19 @@
 import pandas
 import matplotlib.pyplot as plt
-from group_lasso import GroupLasso
+from sklearn.linear_model import Lasso, LassoCV
+from sklearn import  model_selection
 from sklearn.model_selection import train_test_split
 import numpy as np
+import statsmodels.api as sm
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler, OrdinalEncoder
 import seaborn as sns
 
+def print_table(data):
+    print("{:<50s}{:<10s}".format("Name", "Coefficient"))
+    for coef, name in data:
+        print("{:<50s}{:<10f}".format(name, coef))
 #regressió només amb les variables clíniques del pacient
 #Dades:
 #===============================================================================
@@ -29,14 +37,80 @@ print(clinical_data.isna().sum().sort_values())
 distribucion_variable = sns.kdeplot(predict_data.loc[:,"OS"], fill    = True, color   = "blue")
 
 #diferenciam entre numèriques i qualitatives, pero hem notat abans que hi ha variables descrites 
+# Binarització de variables qualitatives.
+#=====================================================================================================================
+print(clinical_data["hepatitis"].value_counts()) #No virus,HCV only,HCV and HBV , HBV only
+dummies_hepatitis = pandas.get_dummies(clinical_data['hepatitis']).drop(['No virus'], axis=1)
 
+print(clinical_data["agegp"].value_counts()) #>70 , 61-70 , 51-60, 41-50 , <=40
+encoder = OrdinalEncoder(categories=[["<=40", "41-50","51-60","61-70",">70"]])
+encoder.fit(clinical_data[["agegp"]])
+clinical_data["agegp"] = encoder.transform(clinical_data[["agegp"]])
+
+print(clinical_data["Pathology"].value_counts()) #Well differentiated,Moderately differentiated,NOT STATED,Poorly differentiated,No biopsy,Well-moderately differentiated
+clinical_data['Pathology'] = clinical_data['Pathology'].replace(['NOT STATED', 'No biopsy'], 'No information')     
+encoder = OrdinalEncoder(categories=[["No information","Poorly differentiated", "Moderately-poorly differentiated","Moderately differentiated","Well-moderately differentiated","Well differentiated"]])
+encoder.fit(clinical_data[["Pathology"]])
+clinical_data["Pathology"] = encoder.transform(clinical_data[["Pathology"]])
+
+print(clinical_data["CPS"].value_counts()) # A,B,C es severitat están ordenats
+encoder = OrdinalEncoder(categories=[["A", "B","C"]])
+encoder.fit(clinical_data[["CPS"]])
+clinical_data["CPS"] = encoder.transform(clinical_data[["CPS"]])
+
+print(clinical_data["tumor_nodul"].value_counts())#és binària per tant 
+dummies_tumor_nodul = pandas.get_dummies(clinical_data['tumor_nodul']).drop(['uninodular'], axis=1)
+
+print(clinical_data["T_involvment"].value_counts())#<=50%,>50%
+encoder = OrdinalEncoder(categories=[["< or = 50%", ">50%"]])
+encoder.fit(clinical_data[["T_involvment"]])
+clinical_data["T_involvment"] = encoder.transform(clinical_data[["T_involvment"]])
+
+print(clinical_data["AFP_group"].value_counts())#<400,>=400
+encoder = OrdinalEncoder(categories=[["<400", ">=400"]])
+encoder.fit(clinical_data[["AFP_group"]])
+clinical_data["AFP_group"] = encoder.transform(clinical_data[["AFP_group"]])
+
+print(clinical_data["CLIP_Score"].value_counts())
+encoder = OrdinalEncoder(categories=[["Stage_0","Stage_1","Stage_2","Stage_3","Stage_4","Stage_5"]])
+encoder.fit(clinical_data[["CLIP_Score"]])
+clinical_data["CLIP_Score"] = encoder.transform(clinical_data[["CLIP_Score"]])
+
+print(clinical_data["CLIP"].value_counts())
+encoder = OrdinalEncoder(categories=[["Stage_ 0-2","Stage_3","Stage_4-6"]])
+encoder.fit(clinical_data[["CLIP"]])
+clinical_data["CLIP"] = encoder.transform(clinical_data[["CLIP"]])
+
+print(clinical_data["Okuda"].value_counts())
+encoder = OrdinalEncoder(categories=[["Stage I","Stage II","Stage III"]])
+encoder.fit(clinical_data[["Okuda"]])
+clinical_data["Okuda"] = encoder.transform(clinical_data[["Okuda"]])
+
+print(clinical_data["TNM"].value_counts())
+encoder = OrdinalEncoder(categories=[["Stage-I","Stage-II","Stage-IIIA","Stage-IIIB","Stage-IIIC", "Stage-IVA", "Stage-IVB"]])
+encoder.fit(clinical_data[["TNM"]])
+clinical_data["TNM"] = encoder.transform(clinical_data[["TNM"]])
+
+print(clinical_data["BCLC"].value_counts())
+encoder = OrdinalEncoder(categories=[["Stage-A","Stage-B","Stage-C","Stage-D"]])
+encoder.fit(clinical_data[["BCLC"]])
+clinical_data["BCLC"] = encoder.transform(clinical_data[["BCLC"]])
+
+# Añadim les variables qualitatives tractades amb get_dummies i llevam les anteriors
+clinical_data = pandas.concat([clinical_data, dummies_hepatitis,dummies_tumor_nodul], axis = 1)
+clinical_data = clinical_data.drop(columns=['tumor_nodul','hepatitis'])
+#Eliminam les variables on un factor es massa dominant:
+#Nose si te molt de sentit incloure la variable de: Death_stillAlive_orlosttoFU...l'elimin de moment
+clinical_data = clinical_data.drop(["Metastasis","fhx_livc","Death_1_StillAliveorLostToFU_0"],axis = 1)
+#=======================================================================================================================
 # Hem de canviar el tipus de variable si están expressades amb nombres però son facotrs
 #Mirant les dades he vost que n'hi ha amb fins a 5 factors, les transformam a "category" que es una espècie de "factor" de R.
 for col in clinical_data.columns:
     unique_vals = clinical_data[col].unique()
     if len(unique_vals) <= 5:
         clinical_data.loc[:,col] = clinical_data.loc[:,col].astype("category")
-
+#Nose si te molt de sentit incloure la variable de: Death_stillAlive_orlosttoFU...l'elimin de moment
+clinical_data_csv = clinical_data.to_csv("clinical_data_processed.csv") 
 clinical_data.info()
 #Ara podem separar per numèriques i categòriques
 #VARIABLES NUMÈRIQUES:
@@ -63,36 +137,17 @@ fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(6, 6))
 sns.heatmap(corr_matrix, annot = True, cbar = False,annot_kws = {"size": 6},vmin= -1,vmax = 1,center = 0,cmap = sns.diverging_palette(20, 220, n=200),square = True,ax = ax)
 ax.set_xticklabels(ax.get_xticklabels(),rotation = 45, horizontalalignment = 'right')
 ax.tick_params(labelsize = 8)
+plt.show()
 #Hi ha variables MOLT correlacionades en aquest cas, es podria descartar features en aquest pas, entenc que Lasso ja ho fa mirant la cantitat de infromacóque ens donen 
 #pero no estic segura.
 
-#Variables qualitatives:
-#================================================
-qualitatives = clinical_data.select_dtypes(include=["object", "category"])
-print(qualitatives.describe())
-#Problema: me preocupa que qualquna d'aquestes variables tengui molts pocs valors a certes caract i efecti a sa cross-validation si a un grup des k 
-# per ser tant pocs no n'agafa.
-fig, axes = plt.subplots(nrows=7, ncols=5, figsize=(20,10))
-axes = axes.flat
-
-for i, colum in enumerate(qualitatives):
-    clinical_data[colum].value_counts().plot.barh(ax = axes[i])
-    axes[i].set_title(colum, fontsize = 7, fontweight = "bold")
-    axes[i].tick_params(labelsize = 6)
-    axes[i].set_xlabel("")
-
-    
-fig.tight_layout()
-plt.subplots_adjust(top=0.9)
-fig.suptitle('Distribución variables cualitativas',
-             fontsize = 10, fontweight = "bold")
-
-
 #Separació:
-#A la pràctica sempre es sol fer 0.8 i 0.2, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
-X_train, X_test, y_train, y_test = train_test_split(clinical_data, predict_data, train_size   = 0.8,shuffle = True, random_state= 1234)
+#A la pràctica sempre es sol fer 0.7 i 0.3, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
+X_train, X_test, y_train, y_test = train_test_split(clinical_data, predict_data, train_size = 0.7,shuffle = True, random_state= 1234)
 
-#Pre-processament de les dades:
+
+#Processament de les dades:
+
 #Valors NA's:
 total = X_train.isnull().sum().sort_values(ascending = False)
 percent = (X_train.isnull().sum() / X_train.isnull().count()).sort_values(ascending = False)
@@ -107,99 +162,120 @@ print(missing_data)
 X_train = X_train.drop((missing_data[missing_data['Total'] > 1]).index,1)
 print(X_train.isnull().sum().max()) # Para comprobar que no hay más datos desaparecidos.
 print(X_train.shape)
-#Outliers:
-boxplot_y = plt.boxplot(y_train)
 
 #Estandardització
 X_train.info()
+for colname in X_test.columns:
+    if colname not in X_train.columns:
+        X_test = X_test.drop(colname, axis = 1)
 X_train_num = X_train.select_dtypes(include=['float64', 'int'])
-X_train_num.info()
+
 
 scaler = StandardScaler()
-X_train_n = scaler.fit_transform(X_train_num)
-y_train_n = scaler.fit_transform(y_train)
-plt.boxplot(y_train_n)
-plt.show()
-
-# Binarització variables qualitatives: ho he fet al principi pel problema explicat al latex
-# Binarització de variables qualitatives.
-#=====================================================================================================================
-print(X_train["hepatitis"].value_counts()) #No virus,HCV only,HCV and HBV , HBV only
-dummies_hepatitis = pandas.get_dummies(X_train['hepatitis']).drop(['No virus'], axis=1)
-
-print(X_train["agegp"].value_counts()) #>70 , 61-70 , 51-60, 41-50 , <=40
-encoder = OrdinalEncoder(categories=[["<=40", "41-50","51-60","61-70",">70"]])
-encoder.fit(X_train[["agegp"]])
-X_train["agegp"] = encoder.transform(X_train[["agegp"]])
-
-print(X_train["Pathology"].value_counts()) #Well differentiated,Moderately differentiated,NOT STATED,Poorly differentiated,No biopsy,Well-moderately differentiated     
-dummies_pathology = pandas.get_dummies(X_train['Pathology']).drop(['No biopsy'], axis=1)
-
-print(X_train["CPS"].value_counts()) # A,B,C es severitat están ordenats
-encoder = OrdinalEncoder(categories=[["A", "B","C"]])
-encoder.fit(X_train[["CPS"]])
-X_train["CPS"] = encoder.transform(X_train[["CPS"]])
-
-print(X_train["tumor_nodul"].value_counts())#és binària per tant 
-dummies_tumor_nodul = pandas.get_dummies(X_train['tumor_nodul']).drop(['uninodular'], axis=1)
-
-print(X_train["T_involvment"].value_counts())#<=50%,>50%
-encoder = OrdinalEncoder(categories=[["< or = 50%", ">50%"]])
-encoder.fit(X_train[["T_involvment"]])
-X_train["T_involvment"] = encoder.transform(X_train[["T_involvment"]])
-
-print(X_train["AFP_group"].value_counts())#<400,>=400
-encoder = OrdinalEncoder(categories=[["<400", ">=400"]])
-encoder.fit(X_train[["AFP_group"]])
-X_train["AFP_group"] = encoder.transform(X_train[["AFP_group"]])
-
-print(X_train["CLIP_Score"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage_0","Stage_1","Stage_2","Stage_3","Stage_4","Stage_5"]])
-encoder.fit(X_train[["CLIP_Score"]])
-X_train["CLIP_Score"] = encoder.transform(X_train[["CLIP_Score"]])
-
-print(X_train["CLIP"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage_ 0-2","Stage_3","Stage_4-6"]])
-encoder.fit(X_train[["CLIP"]])
-X_train["CLIP"] = encoder.transform(X_train[["CLIP"]])
-
-print(X_train["Okuda"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage I","Stage II","Stage III"]])
-encoder.fit(X_train[["Okuda"]])
-X_train["Okuda"] = encoder.transform(X_train[["Okuda"]])
-
-print(X_train["TNM"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage-I","Stage-II","Stage-IIIA","Stage-IIIB","Stage-IIIC", "Stage-IVA", "Stage-IVB"]])
-encoder.fit(X_train[["TNM"]])
-X_train["TNM"] = encoder.transform(X_train[["TNM"]])
-
-print(X_train["BCLC"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage-A","Stage-B","Stage-C","Stage-D"]])
-encoder.fit(X_train[["BCLC"]])
-X_train["BCLC"] = encoder.transform(X_train[["BCLC"]])
-
-# Añadim les variables qualitatives tractades amb get_dummies i llevam les anteriors
-X_train = pandas.concat([X_train, dummies_hepatitis,dummies_pathology,dummies_tumor_nodul], axis = 1)
-
-df = X_train.drop(columns=['tumor_nodul','hepatitis','Pathology'])
-
-X_train.info()
-#=======================================================================================================================
+X_train.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']] = scaler.fit_transform(X_train.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']])
+X_test.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']] = scaler.fit_transform(X_test.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']])
 
 #Elecció alpha
-# alphas = 10**np.linspace(10,-2,100)*0.5
-# lasso = GroupLasso(n_iter= 10000)
-# coefs = []
+alphas = np.linspace(0.01,50,200)
+lasso = Lasso(max_iter=10000)
+coefs = []
 
-# for a in alphas:
-#     lasso.set_params(alpha=a)
-#     lasso.fit(X_train, y_train)
-#     coefs.append(lasso.coef_)
-    
-# ax = plt.gca()
-# ax.plot(alphas*2, coefs)
-# ax.set_xscale('log')
-# plt.axis('tight')
-# plt.xlabel('alpha')
-# plt.ylabel('weights')
-# plt.show()
+for a in alphas:
+    lasso.set_params(alpha=a)
+    lasso.fit(X_train, y_train)
+    coefs.append(lasso.coef_)
+
+ax = plt.gca()
+
+ax.plot(alphas, coefs)
+ax.set_xscale('log')
+plt.axis('tight')
+plt.xlabel('alpha')
+plt.ylabel('Standardized Coefficients')
+plt.title('Lasso coefficients as a function of alpha')
+plt.show()
+
+Lasso_reg= Lasso(alpha=0.9, random_state=1234)
+Lasso_reg.fit(X_train,y_train)
+#===============================================================================================
+#Avaluació del model
+# metriques amb training
+scoring = "neg_mean_squared_error"
+results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
+print("Mean Squared Error: ", results.mean())
+
+scoring = "r2"
+results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
+print("R squared val: ", results.mean())
+
+#Anàlisi de resiuds:
+cv_prediccones = cross_val_predict(
+                    estimator = Lasso_reg,
+                    X         = X_train,
+                    y         = y_train,
+                    cv        = 4
+                 )
+
+# Gràfics
+# ==============================================================================
+fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(9, 5))
+
+axes[0, 0].scatter(y_train, cv_prediccones, edgecolors=(0, 0, 0), alpha = 0.4)
+axes[0, 0].plot(
+    [y_train.min(), y_train.max()],
+    [y_train.min(), y_train.max()],
+    'k--', color = 'black', lw=2
+)
+axes[0, 0].set_title('Valor predicho vs valor real', fontsize = 10, fontweight = "bold")
+axes[0, 0].set_xlabel('Real')
+axes[0, 0].set_ylabel('Predicción')
+axes[0, 0].tick_params(labelsize = 7)
+
+axes[0, 1].scatter(list(range(len(y_train))), y_train.loc[:,"OS"].tolist() - cv_prediccones,
+                   edgecolors=(0, 0, 0), alpha = 0.4)
+axes[0, 1].axhline(y = 0, linestyle = '--', color = 'black', lw=2)
+axes[0, 1].set_title('Residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[0, 1].set_xlabel('id')
+axes[0, 1].set_ylabel('Residuo')
+axes[0, 1].tick_params(labelsize = 7)
+
+sns.histplot(
+    data    = y_train.loc[:,"OS"].tolist() - cv_prediccones,
+    stat    = "density",
+    kde     = True,
+    line_kws= {'linewidth': 1},
+    color   = "firebrick",
+    alpha   = 0.3,
+    ax      = axes[1, 0]
+)
+
+axes[1, 0].set_title('Distribución residuos del modelo', fontsize = 10,
+                     fontweight = "bold")
+axes[1, 0].set_xlabel("Residuo")
+axes[1, 0].tick_params(labelsize = 7)
+
+
+sm.qqplot(
+    y_train.loc[:,"OS"].tolist() - cv_prediccones,
+    fit   = True,
+    line  = 'q',
+    ax    = axes[1, 1], 
+    color = 'firebrick',
+    alpha = 0.4,
+    lw    = 2
+)
+axes[1, 1].set_title('Q-Q residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[1, 1].tick_params(labelsize = 7)
+
+fig.tight_layout()
+plt.subplots_adjust(top=0.9)
+fig.suptitle('Diagnóstico residuos', fontsize = 12, fontweight = "bold");
+plt.show()
+
+#Datos test
+prediccions = Lasso_reg.predict(X_test)
+df_predicciones = pandas.DataFrame({'precio' : y_test.loc[:,"OS"], 'prediccion' : prediccions})
+
+mse = mean_squared_error(y_true = y_test,y_pred = prediccions)
+print(mse)
+

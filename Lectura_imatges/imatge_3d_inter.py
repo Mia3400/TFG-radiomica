@@ -20,5 +20,4 @@ image_array = sitk.GetArrayFromImage(image).astype(float)
 
 #Mostrar la imatge
 plt.imshow(image_array[0,:,:])
-
 sitk.Show(image)
