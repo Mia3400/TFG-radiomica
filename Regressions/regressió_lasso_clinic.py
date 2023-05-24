@@ -4,8 +4,9 @@ from sklearn.linear_model import Lasso, LassoCV
 from sklearn import  model_selection
 from sklearn.model_selection import train_test_split
 import numpy as np
+from coeficients import r2,calculate_aic
 import statsmodels.api as sm
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error,r2_score
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler, OrdinalEncoder
 import seaborn as sns
@@ -14,6 +15,7 @@ def print_table(data):
     print("{:<50s}{:<10s}".format("Name", "Coefficient"))
     for coef, name in data:
         print("{:<50s}{:<10f}".format(name, coef))
+
 #regressió només amb les variables clíniques del pacient
 #Dades:
 #===============================================================================
@@ -29,95 +31,84 @@ clinical_data = data.loc[:, data.columns != 'OS'].set_index("TCIA_ID")
 #================================================================================
 
 clinical_data.info()
-print(clinical_data.shape)
-#55 variables 
-print(clinical_data.isna().sum().sort_values())
-#qualqunes tenen NA's
+# 55 variables 
+# Diferenciam entre numèriques i qualitatives, pero hem notat abans que hi ha variables descrites 
 
-distribucion_variable = sns.kdeplot(predict_data.loc[:,"OS"], fill    = True, color   = "blue")
-
-#diferenciam entre numèriques i qualitatives, pero hem notat abans que hi ha variables descrites 
 # Binarització de variables qualitatives.
 #=====================================================================================================================
-print(clinical_data["hepatitis"].value_counts()) #No virus,HCV only,HCV and HBV , HBV only
-dummies_hepatitis = pandas.get_dummies(clinical_data['hepatitis']).drop(['No virus'], axis=1)
+# print(clinical_data["hepatitis"].value_counts()) #No virus,HCV only,HCV and HBV , HBV only
+dummies_hepatitis = pandas.get_dummies(clinical_data['hepatitis'],prefix="hepatitis").drop(['hepatitis_No virus'], axis=1)
 
-print(clinical_data["agegp"].value_counts()) #>70 , 61-70 , 51-60, 41-50 , <=40
+# print(clinical_data["agegp"].value_counts()) #>70 , 61-70 , 51-60, 41-50 , <=40
 encoder = OrdinalEncoder(categories=[["<=40", "41-50","51-60","61-70",">70"]])
 encoder.fit(clinical_data[["agegp"]])
 clinical_data["agegp"] = encoder.transform(clinical_data[["agegp"]])
 
-print(clinical_data["Pathology"].value_counts()) #Well differentiated,Moderately differentiated,NOT STATED,Poorly differentiated,No biopsy,Well-moderately differentiated
+# print(clinical_data["Pathology"].value_counts()) #Well differentiated,Moderately differentiated,NOT STATED,Poorly differentiated,No biopsy,Well-moderately differentiated
 clinical_data['Pathology'] = clinical_data['Pathology'].replace(['NOT STATED', 'No biopsy'], 'No information')     
 encoder = OrdinalEncoder(categories=[["No information","Poorly differentiated", "Moderately-poorly differentiated","Moderately differentiated","Well-moderately differentiated","Well differentiated"]])
 encoder.fit(clinical_data[["Pathology"]])
 clinical_data["Pathology"] = encoder.transform(clinical_data[["Pathology"]])
 
-print(clinical_data["CPS"].value_counts()) # A,B,C es severitat están ordenats
-encoder = OrdinalEncoder(categories=[["A", "B","C"]])
-encoder.fit(clinical_data[["CPS"]])
-clinical_data["CPS"] = encoder.transform(clinical_data[["CPS"]])
+# print(clinical_data["CPS"].value_counts()) # A,B,C es severitat están ordenats
+dummies_CPS = pandas.get_dummies(clinical_data['CPS'],prefix='CPS')
 
-print(clinical_data["tumor_nodul"].value_counts())#és binària per tant 
-dummies_tumor_nodul = pandas.get_dummies(clinical_data['tumor_nodul']).drop(['uninodular'], axis=1)
+# print(clinical_data["tumor_nodul"].value_counts())#és binària per tant 
+dummies_tumor_nodul = pandas.get_dummies(clinical_data['tumor_nodul'],prefix='tumor_nodul').drop(['tumor_nodul_uninodular'], axis=1)
 
-print(clinical_data["T_involvment"].value_counts())#<=50%,>50%
+# print(clinical_data["T_involvment"].value_counts())#<=50%,>50%
 encoder = OrdinalEncoder(categories=[["< or = 50%", ">50%"]])
 encoder.fit(clinical_data[["T_involvment"]])
 clinical_data["T_involvment"] = encoder.transform(clinical_data[["T_involvment"]])
 
-print(clinical_data["AFP_group"].value_counts())#<400,>=400
+# print(clinical_data["AFP_group"].value_counts())#<400,>=400
 encoder = OrdinalEncoder(categories=[["<400", ">=400"]])
 encoder.fit(clinical_data[["AFP_group"]])
 clinical_data["AFP_group"] = encoder.transform(clinical_data[["AFP_group"]])
 
-print(clinical_data["CLIP_Score"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage_0","Stage_1","Stage_2","Stage_3","Stage_4","Stage_5"]])
-encoder.fit(clinical_data[["CLIP_Score"]])
-clinical_data["CLIP_Score"] = encoder.transform(clinical_data[["CLIP_Score"]])
+# print(clinical_data["CLIP_Score"].value_counts())
+dummies_CLIP_Score = pandas.get_dummies(clinical_data['CLIP_Score'],prefix='CLIP_score')
 
-print(clinical_data["CLIP"].value_counts())
+# print(clinical_data["CLIP"].value_counts())
 encoder = OrdinalEncoder(categories=[["Stage_ 0-2","Stage_3","Stage_4-6"]])
 encoder.fit(clinical_data[["CLIP"]])
 clinical_data["CLIP"] = encoder.transform(clinical_data[["CLIP"]])
 
-print(clinical_data["Okuda"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage I","Stage II","Stage III"]])
-encoder.fit(clinical_data[["Okuda"]])
-clinical_data["Okuda"] = encoder.transform(clinical_data[["Okuda"]])
+# print(clinical_data["Okuda"].value_counts())
+dummies_Okuda = pandas.get_dummies(clinical_data['Okuda'],prefix='Okuda')
 
-print(clinical_data["TNM"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage-I","Stage-II","Stage-IIIA","Stage-IIIB","Stage-IIIC", "Stage-IVA", "Stage-IVB"]])
-encoder.fit(clinical_data[["TNM"]])
-clinical_data["TNM"] = encoder.transform(clinical_data[["TNM"]])
+# print(clinical_data["TNM"].value_counts())
+dummies_TNM = pandas.get_dummies(clinical_data['TNM'],prefix= 'TNM')
 
-print(clinical_data["BCLC"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage-A","Stage-B","Stage-C","Stage-D"]])
-encoder.fit(clinical_data[["BCLC"]])
-clinical_data["BCLC"] = encoder.transform(clinical_data[["BCLC"]])
+# print(clinical_data["BCLC"].value_counts())
+dummies_BCLC= pandas.get_dummies(clinical_data['BCLC'],prefix='BCLC')
 
-# Añadim les variables qualitatives tractades amb get_dummies i llevam les anteriors
-clinical_data = pandas.concat([clinical_data, dummies_hepatitis,dummies_tumor_nodul], axis = 1)
-clinical_data = clinical_data.drop(columns=['tumor_nodul','hepatitis'])
+# Afagim les variables qualitatives tractades amb get_dummies i llevam les anteriors
+clinical_data = pandas.concat([clinical_data, dummies_hepatitis,dummies_tumor_nodul,dummies_CPS,dummies_CLIP_Score,dummies_TNM,dummies_BCLC,dummies_Okuda], axis = 1)
+clinical_data = clinical_data.drop(columns=['tumor_nodul','hepatitis','CPS','CLIP_Score','TNM','BCLC','Okuda'])
+
 #Eliminam les variables on un factor es massa dominant:
 #Nose si te molt de sentit incloure la variable de: Death_stillAlive_orlosttoFU...l'elimin de moment
 clinical_data = clinical_data.drop(["Metastasis","fhx_livc","Death_1_StillAliveorLostToFU_0"],axis = 1)
+
 #=======================================================================================================================
 # Hem de canviar el tipus de variable si están expressades amb nombres però son facotrs
 #Mirant les dades he vost que n'hi ha amb fins a 5 factors, les transformam a "category" que es una espècie de "factor" de R.
 for col in clinical_data.columns:
     unique_vals = clinical_data[col].unique()
-    if len(unique_vals) <= 5:
+    if len(unique_vals) <= 7:
         clinical_data.loc[:,col] = clinical_data.loc[:,col].astype("category")
+
 #Nose si te molt de sentit incloure la variable de: Death_stillAlive_orlosttoFU...l'elimin de moment
 clinical_data_csv = clinical_data.to_csv("clinical_data_processed.csv") 
-clinical_data.info()
 #Ara podem separar per numèriques i categòriques
+
 #VARIABLES NUMÈRIQUES:
+#======================================================================================
 numeriques = clinical_data.select_dtypes(include=['float64', 'int'])
 
-print(numeriques.describe())
-#De moment mini analisis de correlacions entre elles:
+# print(numeriques.describe())
+# De moment mini analisis de correlacions entre elles:
 def tidy_corr_matrix(corr_mat):
     '''
     Función para convertir una matrix de correlación de pandas en formato tidy
@@ -138,44 +129,41 @@ sns.heatmap(corr_matrix, annot = True, cbar = False,annot_kws = {"size": 6},vmin
 ax.set_xticklabels(ax.get_xticklabels(),rotation = 45, horizontalalignment = 'right')
 ax.tick_params(labelsize = 8)
 plt.show()
+plt.close()
+
 #Hi ha variables MOLT correlacionades en aquest cas, es podria descartar features en aquest pas, entenc que Lasso ja ho fa mirant la cantitat de infromacóque ens donen 
 #pero no estic segura.
 
 #Separació:
+#=============================================================================================
 #A la pràctica sempre es sol fer 0.7 i 0.3, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
 X_train, X_test, y_train, y_test = train_test_split(clinical_data, predict_data, train_size = 0.7,shuffle = True, random_state= 1234)
 
-
 #Processament de les dades:
-
+#=============================================================================================
 #Valors NA's:
 total = X_train.isnull().sum().sort_values(ascending = False)
 percent = (X_train.isnull().sum() / X_train.isnull().count()).sort_values(ascending = False)
 missing_data = pandas.concat([total, percent], axis = 1, keys = ['Total', 'Percent'])
-print(missing_data)
-#Tumor size: 51% de valors nuls...
-#Chemoterapy : 15% nuls
-#anem a observar come s la variable de quimioterapia:*--
-#no tenc clar que fer amb aquests nuls, crec que recordant erl que vas dir imputar-los computacionalment amb tant poques dades 
-# no es gaire natural i la regressió es veura afectada, a més les quetenen valors nuls están MOLT correlacionades aií que de moment les he eliminades 
 
 X_train = X_train.drop((missing_data[missing_data['Total'] > 1]).index,1)
-print(X_train.isnull().sum().max()) # Para comprobar que no hay más datos desaparecidos.
-print(X_train.shape)
 
-#Estandardització
+#Estandardització:
+#=============================================================================================
 X_train.info()
 for colname in X_test.columns:
     if colname not in X_train.columns:
         X_test = X_test.drop(colname, axis = 1)
-X_train_num = X_train.select_dtypes(include=['float64', 'int'])
-
+X_train_num = list(X_train.select_dtypes(include=['float64', 'int']).columns)
 
 scaler = StandardScaler()
-X_train.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']] = scaler.fit_transform(X_train.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']])
-X_test.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']] = scaler.fit_transform(X_test.loc[:,['Interval_BL', 'TTP', 'age', 'Pathology', 'AFP', 'CLIP_Score', 'TNM']])
+X_train.loc[:,X_train_num] = scaler.fit_transform(X_train.loc[:,X_train_num])
+X_test.loc[:,X_train_num] = scaler.fit_transform(X_test.loc[:,X_train_num])
 
 #Elecció alpha
+print('NUMERO VARIABLES FINAL PROCESSAMENT:')
+print(X_train.shape)
+
 alphas = np.linspace(0.01,50,200)
 lasso = Lasso(max_iter=10000)
 coefs = []
@@ -194,19 +182,41 @@ plt.xlabel('alpha')
 plt.ylabel('Standardized Coefficients')
 plt.title('Lasso coefficients as a function of alpha')
 plt.show()
-
+plt.close()
+#===================================================
 Lasso_reg= Lasso(alpha=0.9, random_state=1234)
 Lasso_reg.fit(X_train,y_train)
+def print_table(data):
+    print("{:<50s}{:<10s}".format("Name", "Coefficient"))
+    for coef, name in data:
+        print("{:<50s}{:<10f}".format(name, coef))
+
+alpha_coefs = list(zip(Lasso_reg.coef_, X_train))
+print_table(alpha_coefs)
 #===============================================================================================
 #Avaluació del model
 # metriques amb training
+
 scoring = "neg_mean_squared_error"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
 print("Mean Squared Error: ", results.mean())
 
 scoring = "r2"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
+print(results)
 print("R squared val: ", results.mean())
+
+
+results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=r2)
+print(results)
+print("R squared val: ", results.mean())
+
+print("r2 sense cross_validation")
+print(r2_score(
+    y_pred= Lasso_reg.predict(X_train),
+    y_true=  y_train))
+print("R2 sense cross-val computat per jo:")
+print(r2(Lasso_reg, X_train,y_train))
 
 #Anàlisi de resiuds:
 cv_prediccones = cross_val_predict(
@@ -274,8 +284,11 @@ plt.show()
 
 #Datos test
 prediccions = Lasso_reg.predict(X_test)
-df_predicciones = pandas.DataFrame({'precio' : y_test.loc[:,"OS"], 'prediccion' : prediccions})
+df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'prediccion' : prediccions})
 
-mse = mean_squared_error(y_true = y_test,y_pred = prediccions)
-print(mse)
-
+print("R2 computat per jo a test:")
+print(r2(Lasso_reg,X_test,y_test))
+r2_score = r2_score(y_true=y_test, y_pred=prediccions)
+print(r2_score)
+print("AIC")
+print(calculate_aic(Lasso_reg,X_test,y_test))

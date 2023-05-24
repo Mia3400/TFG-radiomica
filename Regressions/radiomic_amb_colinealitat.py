@@ -3,11 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error,r2_score
+from coeficients import r2
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
-from coeficients import r2,calculate_aic
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -36,7 +36,7 @@ data = pandas.merge(radiomic_data,clinical_data, on="Patient").set_index("Patien
 #detectam variables qualificatives, serán just les mateixes que al clinical data
 for col in data.columns:
     unique_vals = data[col].unique()
-    if len(unique_vals) <= 7:
+    if len(unique_vals) <= 5:
         data.loc[:,col] = data.loc[:,col].astype("category")
 print(data.head)
 data.info()
@@ -47,7 +47,23 @@ predict = predict_feature(clinical_data_path, names)     #OS dels mateixos pacie
 
 
 #Correlació:
-
+corr_matrix = data.corr()
+high_corr = corr_matrix[corr_matrix.abs() > 0.8]
+# Get the variable pairs with high correlation
+correlated_vars = [(col1, col2) for col1 in high_corr.columns for col2 in high_corr.index if col1 != col2 and  high_corr.loc[col2, col1] > 0.8]
+# Print the variable pairs with high correlation
+var_counts = {}
+for col1, col2 in correlated_vars:
+    var_counts[col1] = var_counts.get(col1, 0) + 1
+    var_counts[col2] = var_counts.get(col2, 0) + 1
+print(var_counts)
+for var1,var2 in correlated_vars:
+    if var1 in data.columns and var2 in data.columns:
+        if var_counts.get(var1)<= var_counts.get(var2):
+            data = data.drop(var1,axis=1)
+        else:
+            data = data.drop(var2,axis=1)
+data.info()
 #Separació:
 #A la pràctica sempre es sol fer 0.8 i 0.2, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
 X_train, X_test, y_train, y_test = train_test_split(data, predict, train_size   = 0.7,shuffle = True, random_state= 1234)
@@ -56,6 +72,7 @@ X_train, X_test, y_train, y_test = train_test_split(data, predict, train_size   
 X_train = X_train.drop(X_train.columns[X_train.isna().any()],1)
 
 #Estandarització:
+
 for colname in X_test.columns:
     if colname not in X_train.columns:
         X_test = X_test.drop(colname, axis = 1)
@@ -88,7 +105,6 @@ plt.xlabel('alpha')
 plt.ylabel('Standardized Coefficients')
 plt.title('Lasso coefficients as a function of alpha')
 plt.show()
-plt.close()
 
 zip_alphas = (list(zip(coefs, alphas)))
 nonzero_coefs = []
@@ -104,7 +120,7 @@ plt.ylabel('number of non-zero coefficients')
 plt.xscale('log')
 plt.show()
 
-Lasso_reg= Lasso(alpha=2, random_state=42)
+Lasso_reg= Lasso(alpha=0.9, random_state=42)
 Lasso_reg.fit(X_train,y_train)
 # scores = cross_val_score(Lasso_reg, X_train, y_train_n, cv=3)
 # print(scores) #perque son tant dolentes?????
@@ -136,13 +152,11 @@ scoring = "r2"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
 print("R squared val: ", results.mean())
 
-print("r2 SENSE CROSS_CVAL_ORDENADOR")
 print(r2_score(
     y_pred= Lasso_reg.predict(X_train),
     y_true=  y_train))
-
 print("R2 sense cross-val computat per jo:")
-print(r2(Lasso_reg, X_train,y_train))
+# print(r2(Lasso_reg, X_train,y_train))
 #Anàlisi de resiuds:
 cv_prediccones = cross_val_predict(
                     estimator = Lasso_reg,
@@ -211,6 +225,8 @@ plt.show()
 prediccions = Lasso_reg.predict(X_test)
 df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'predicció' : prediccions})
 print(df_predicciones)
-print(r2_score(y_true= y_test,y_pred= prediccions))
-print("AIC")
-print(calculate_aic(Lasso_reg,X_test,y_test))
+mse = mean_squared_error(y_true = y_test,y_pred = prediccions)
+print(mse)
+r2_computada = r2(Lasso_reg, X_test,y_test)
+print(r2_computada)
+print(r2_score(y_pred= prediccions, y_true=y_test))
