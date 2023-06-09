@@ -33,6 +33,29 @@ clinical_data = data.loc[:, data.columns != 'OS'].set_index("TCIA_ID")
 clinical_data.info()
 # 55 variables 
 # Diferenciam entre numèriques i qualitatives, pero hem notat abans que hi ha variables descrites 
+#Barplot variables qualitatives:
+for col in clinical_data.columns:
+    unique_vals = clinical_data[col].unique()
+    if len(unique_vals) <= 7:
+        clinical_data.loc[:,col] = clinical_data.loc[:,col].astype("category")
+
+fig, axes = plt.subplots(nrows=7, ncols=5, figsize=(15, 8))
+axes = axes.flat
+columnas_object = clinical_data.select_dtypes(include=['category'])
+
+for i, colum in enumerate(columnas_object):
+    columnas_object.loc[:,colum].value_counts().plot.barh(ax = axes[i])
+    axes[i].set_title(colum, fontsize = 7, fontweight = "bold")
+    axes[i].tick_params(labelsize = 6)
+    axes[i].set_xlabel("")
+
+    
+fig.tight_layout()
+plt.subplots_adjust(top=0.9)
+fig.suptitle('Distribució variables',
+             fontsize = 15, fontweight = "bold")
+
+
 
 # Binarització de variables qualitatives.
 #=====================================================================================================================
@@ -70,10 +93,7 @@ clinical_data["AFP_group"] = encoder.transform(clinical_data[["AFP_group"]])
 dummies_CLIP_Score = pandas.get_dummies(clinical_data['CLIP_Score'],prefix='CLIP_score')
 
 # print(clinical_data["CLIP"].value_counts())
-encoder = OrdinalEncoder(categories=[["Stage_ 0-2","Stage_3","Stage_4-6"]])
-encoder.fit(clinical_data[["CLIP"]])
-clinical_data["CLIP"] = encoder.transform(clinical_data[["CLIP"]])
-
+dummies_CLIP = pandas.get_dummies(clinical_data['CLIP'],prefix='CLIP')
 # print(clinical_data["Okuda"].value_counts())
 dummies_Okuda = pandas.get_dummies(clinical_data['Okuda'],prefix='Okuda')
 
@@ -84,8 +104,8 @@ dummies_TNM = pandas.get_dummies(clinical_data['TNM'],prefix= 'TNM')
 dummies_BCLC= pandas.get_dummies(clinical_data['BCLC'],prefix='BCLC')
 
 # Afagim les variables qualitatives tractades amb get_dummies i llevam les anteriors
-clinical_data = pandas.concat([clinical_data, dummies_hepatitis,dummies_tumor_nodul,dummies_CPS,dummies_CLIP_Score,dummies_TNM,dummies_BCLC,dummies_Okuda], axis = 1)
-clinical_data = clinical_data.drop(columns=['tumor_nodul','hepatitis','CPS','CLIP_Score','TNM','BCLC','Okuda'])
+clinical_data = pandas.concat([clinical_data, dummies_hepatitis,dummies_tumor_nodul,dummies_CPS,dummies_CLIP_Score,dummies_TNM,dummies_BCLC,dummies_Okuda, dummies_CLIP], axis = 1)
+clinical_data = clinical_data.drop(columns=['tumor_nodul','hepatitis','CPS','CLIP_Score','TNM','BCLC','Okuda','CLIP'])
 
 #Eliminam les variables on un factor es massa dominant:
 #Nose si te molt de sentit incloure la variable de: Death_stillAlive_orlosttoFU...l'elimin de moment
@@ -164,7 +184,7 @@ X_test.loc[:,X_train_num] = scaler.fit_transform(X_test.loc[:,X_train_num])
 print('NUMERO VARIABLES FINAL PROCESSAMENT:')
 print(X_train.shape)
 
-alphas = np.linspace(0.01,50,200)
+alphas = np.linspace(0.01,30,200)
 lasso = Lasso(max_iter=10000)
 coefs = []
 
@@ -179,8 +199,8 @@ ax.plot(alphas, coefs)
 ax.set_xscale('log')
 plt.axis('tight')
 plt.xlabel('alpha')
-plt.ylabel('Standardized Coefficients')
-plt.title('Lasso coefficients as a function of alpha')
+plt.ylabel('Coeficients')
+plt.title('Coeficients en funció d\'alpha')
 plt.show()
 plt.close()
 #===================================================
@@ -196,27 +216,16 @@ print_table(alpha_coefs)
 #===============================================================================================
 #Avaluació del model
 # metriques amb training
-
-scoring = "neg_mean_squared_error"
-results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
-print("Mean Squared Error: ", results.mean())
-
 scoring = "r2"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
 print(results)
-print("R squared val: ", results.mean())
+print("R squared training val: ", results.mean())
 
 
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=r2)
 print(results)
 print("R squared val: ", results.mean())
 
-print("r2 sense cross_validation")
-print(r2_score(
-    y_pred= Lasso_reg.predict(X_train),
-    y_true=  y_train))
-print("R2 sense cross-val computat per jo:")
-print(r2(Lasso_reg, X_train,y_train))
 
 #Anàlisi de resiuds:
 cv_prediccones = cross_val_predict(
@@ -236,17 +245,17 @@ axes[0, 0].plot(
     [y_train.min(), y_train.max()],
     'k--', color = 'black', lw=2
 )
-axes[0, 0].set_title('Valor predicho vs valor real', fontsize = 10, fontweight = "bold")
+axes[0, 0].set_title('Valor predit vs valor real', fontsize = 10, fontweight = "bold")
 axes[0, 0].set_xlabel('Real')
-axes[0, 0].set_ylabel('Predicción')
+axes[0, 0].set_ylabel('Predicció')
 axes[0, 0].tick_params(labelsize = 7)
 
 axes[0, 1].scatter(list(range(len(y_train))), y_train.loc[:,"OS"].tolist() - cv_prediccones,
                    edgecolors=(0, 0, 0), alpha = 0.4)
 axes[0, 1].axhline(y = 0, linestyle = '--', color = 'black', lw=2)
-axes[0, 1].set_title('Residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[0, 1].set_title('Residus del model', fontsize = 10, fontweight = "bold")
 axes[0, 1].set_xlabel('id')
-axes[0, 1].set_ylabel('Residuo')
+axes[0, 1].set_ylabel('Residu')
 axes[0, 1].tick_params(labelsize = 7)
 
 sns.histplot(
@@ -259,9 +268,10 @@ sns.histplot(
     ax      = axes[1, 0]
 )
 
-axes[1, 0].set_title('Distribución residuos del modelo', fontsize = 10,
+axes[1, 0].set_title('Histograma de residus', fontsize = 10,
                      fontweight = "bold")
-axes[1, 0].set_xlabel("Residuo")
+axes[1, 0].set_xlabel("residu")
+axes[1, 0].set_ylabel("densitat")
 axes[1, 0].tick_params(labelsize = 7)
 
 
@@ -274,17 +284,20 @@ sm.qqplot(
     alpha = 0.4,
     lw    = 2
 )
-axes[1, 1].set_title('Q-Q residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[1, 1].set_title('Q-Q residus del model', fontsize = 10, fontweight = "bold")
+axes[1, 1].set_xlabel("Quantils teòrics")
+axes[1, 1].set_ylabel("Quantils mostrals")
 axes[1, 1].tick_params(labelsize = 7)
 
 fig.tight_layout()
 plt.subplots_adjust(top=0.9)
-fig.suptitle('Diagnóstico residuos', fontsize = 12, fontweight = "bold");
+fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
 plt.show()
 
 #Datos test
 prediccions = Lasso_reg.predict(X_test)
 df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'prediccion' : prediccions})
+print(df_predicciones)
 
 print("R2 computat per jo a test:")
 print(r2(Lasso_reg,X_test,y_test))

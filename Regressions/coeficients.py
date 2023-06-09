@@ -25,7 +25,7 @@ def calculate_aic(modelo,X,y):
     n = len(y)
     k = len(modelo.coef_)
     y_pred = modelo.predict(X)
-    residus = y.loc[:,"OS"] - y_pred
+    residus = y.loc[:,"OS"].tolist() - y_pred
     ssr = np.sum(residus**2)
     ver = -(n/2) * (np.log(2*np.pi) + np.log(ssr/n) + 1)
     aic = 2 * k - 2 * ver

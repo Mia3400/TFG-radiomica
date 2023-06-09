@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
 from sklearn.metrics import mean_squared_error,r2_score
-from coeficients import r2
+from coeficients import r2,calculate_aic
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
@@ -225,8 +225,9 @@ plt.show()
 prediccions = Lasso_reg.predict(X_test)
 df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'predicció' : prediccions})
 print(df_predicciones)
-mse = mean_squared_error(y_true = y_test,y_pred = prediccions)
-print(mse)
+
 r2_computada = r2(Lasso_reg, X_test,y_test)
 print(r2_computada)
 print(r2_score(y_pred= prediccions, y_true=y_test))
+print("AIC")
+print(calculate_aic(modelo=Lasso_reg, ))
