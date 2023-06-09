@@ -69,45 +69,47 @@ X_train.loc[:,col_num] = scaler.fit_transform(X_train.loc[:,col_num])
 X_test.loc[:,col_num] = scaler.fit_transform(X_test.loc[:,col_num])
 
 #Elecció alpha
-alphas = np.linspace(0.01,34,50)
-lasso = Lasso(max_iter=15000)
-coefs = []
+# alphas = np.linspace(0.01,40,200)
+# lasso = Lasso(max_iter=15000)
+# coefs = []
 
-for a in alphas:
-    lasso.set_params(alpha=a)
-    lasso.fit(X_train, y_train)
-    coefs.append(lasso.coef_)
+# for a in alphas:
+#     lasso.set_params(alpha=a)
+#     lasso.fit(X_train, y_train)
+#     coefs.append(lasso.coef_)
 
 
-ax = plt.gca()
+# ax = plt.gca()
 
-ax.plot(alphas, coefs)
-ax.set_xscale('log')
-plt.axis('tight')
-plt.xlabel('alpha')
-plt.ylabel('Standardized Coefficients')
-plt.title('Lasso coefficients as a function of alpha')
-plt.show()
-plt.close()
+# ax.plot(alphas, coefs)
+# ax.set_xscale('log')
+# plt.axis('tight')
+# plt.xlabel('alpha')
+# plt.ylabel('Coeficients')
+# plt.title('Coeficients en funció d\' alpha')
+# plt.show()
+# plt.close()
 
-zip_alphas = (list(zip(coefs, alphas)))
-nonzero_coefs = []
-for coef, alpha in zip_alphas:
-    n_nonzero = np.sum(coef != 0)
-    nonzero_coefs.append((alpha, n_nonzero))
+# zip_alphas = (list(zip(coefs, alphas)))
+# nonzero_coefs = []
+# for coef, alpha in zip_alphas:
+#     n_nonzero = np.sum(coef != 0)
+#     nonzero_coefs.append((alpha, n_nonzero))
 
 # Plot the number of non-zero coefficients as a function of alpha
-alphas, n_nonzero = zip(*nonzero_coefs)
-plt.plot(alphas, n_nonzero)
-plt.xlabel('alpha')
-plt.ylabel('number of non-zero coefficients')
-plt.xscale('log')
-plt.show()
+# alphas, n_nonzero = zip(*nonzero_coefs)
+# plt.plot(alphas, n_nonzero)
+# plt.xlabel('alpha')
+# plt.ylabel('number of non-zero coefficients')
+# plt.xscale('log')
+# plt.show()
 
-Lasso_reg= Lasso(alpha=2, random_state=42)
+Lasso_reg= Lasso(alpha=0.9, random_state=42)
 Lasso_reg.fit(X_train,y_train)
-# scores = cross_val_score(Lasso_reg, X_train, y_train_n, cv=3)
-# print(scores) #perque son tant dolentes?????
+
+results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=r2)
+print(results)
+print("R squared training val: ", results.mean())
 
 def print_table(data):
     print("{:<50s}{:<10s}".format("Name", "Coefficient"))
@@ -136,13 +138,6 @@ scoring = "r2"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
 print("R squared val: ", results.mean())
 
-print("r2 SENSE CROSS_CVAL_ORDENADOR")
-print(r2_score(
-    y_pred= Lasso_reg.predict(X_train),
-    y_true=  y_train))
-
-print("R2 sense cross-val computat per jo:")
-print(r2(Lasso_reg, X_train,y_train))
 #Anàlisi de resiuds:
 cv_prediccones = cross_val_predict(
                     estimator = Lasso_reg,
@@ -161,17 +156,17 @@ axes[0, 0].plot(
     [y_train.min(), y_train.max()],
     'k--', color = 'black', lw=2
 )
-axes[0, 0].set_title('Valor predicho vs valor real', fontsize = 10, fontweight = "bold")
+axes[0, 0].set_title('Valor predit vs valor real', fontsize = 10, fontweight = "bold")
 axes[0, 0].set_xlabel('Real')
-axes[0, 0].set_ylabel('Predicción')
+axes[0, 0].set_ylabel('Predicció')
 axes[0, 0].tick_params(labelsize = 7)
 
 axes[0, 1].scatter(list(range(len(y_train))), y_train.loc[:,"OS"].tolist() - cv_prediccones,
                    edgecolors=(0, 0, 0), alpha = 0.4)
 axes[0, 1].axhline(y = 0, linestyle = '--', color = 'black', lw=2)
-axes[0, 1].set_title('Residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[0, 1].set_title('Residus del model', fontsize = 10, fontweight = "bold")
 axes[0, 1].set_xlabel('id')
-axes[0, 1].set_ylabel('Residuo')
+axes[0, 1].set_ylabel('Residu')
 axes[0, 1].tick_params(labelsize = 7)
 
 sns.histplot(
@@ -184,9 +179,10 @@ sns.histplot(
     ax      = axes[1, 0]
 )
 
-axes[1, 0].set_title('Distribución residuos del modelo', fontsize = 10,
+axes[1, 0].set_title('Histograma de residus', fontsize = 10,
                      fontweight = "bold")
-axes[1, 0].set_xlabel("Residuo")
+axes[1, 0].set_xlabel("residu")
+axes[1, 0].set_ylabel("densitat")
 axes[1, 0].tick_params(labelsize = 7)
 
 
@@ -199,12 +195,14 @@ sm.qqplot(
     alpha = 0.4,
     lw    = 2
 )
-axes[1, 1].set_title('Q-Q residuos del modelo', fontsize = 10, fontweight = "bold")
+axes[1, 1].set_title('Q-Q residus del model', fontsize = 10, fontweight = "bold")
+axes[1, 1].set_xlabel("Quantils teòrics")
+axes[1, 1].set_ylabel("Quantils mostrals")
 axes[1, 1].tick_params(labelsize = 7)
 
 fig.tight_layout()
 plt.subplots_adjust(top=0.9)
-fig.suptitle('Diagnóstico residuos', fontsize = 12, fontweight = "bold");
+fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
 plt.show()
 
 #Datos test
