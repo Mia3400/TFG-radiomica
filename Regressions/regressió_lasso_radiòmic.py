@@ -2,16 +2,19 @@ import pandas
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.exceptions import ConvergenceWarning
 import statsmodels.api as sm
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score, cross_val_predict
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, LassoCV
 from coeficients import r2,calculate_aic
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import scale 
+import warnings
+warnings.filterwarnings("ignore", category= ConvergenceWarning) 
 
 def predict_feature(path_clinical_data, names):
     predict = []
@@ -22,44 +25,27 @@ def predict_feature(path_clinical_data, names):
     predict_data = pandas.DataFrame(predict).set_index("TCIA_ID")
     return predict_data
 #Extracció de dades:
-
+# ===================================================================
 clinical_data_path ="C:/Users/miacr/OneDrive/Documentos/TFG/HCC-TACE-Seg_clinical_data-V2.xlsx"
 filepath = "C:/TFG-code/manifest-1643035385102/"
 
-#data = feature_data(filepath)           #Empram el programa per a l'extracció de dades radiòmiques
-#data.to_csv("feature_data2.csv")         #Guardam les dades a un CSV i el llegim 
+radiomic_data = pandas.read_csv("C:/Users/miacr/TFG-radiomica/feature_data_2.csv").set_index("Patient")
+clinical_data_X_train = pandas.read_csv("C:/Users/miacr/TFG-radiomica/clinical_data_Xtrain_processed.csv").rename(columns={"TCIA_ID":"Patient"})
+clinical_data_X_test = pandas.read_csv("C:/Users/miacr/TFG-radiomica/clinical_data_Xtest_processed.csv").rename(columns={"TCIA_ID":"Patient"})
 
-radiomic_data = pandas.read_csv("C:/Users/miacr/TFG-radiomica/feature_data_2.csv")
-clinical_data = pandas.read_csv("C:/Users/miacr/TFG-radiomica/clinical_data_processed.csv")
-clinical_data = clinical_data.rename(columns={"TCIA_ID":"Patient"})
-data = pandas.merge(radiomic_data,clinical_data, on="Patient").set_index("Patient")
-#detectam variables qualificatives, serán just les mateixes que al clinical data
-for col in data.columns:
-    unique_vals = data[col].unique()
-    if len(unique_vals) <= 7:
-        data.loc[:,col] = data.loc[:,col].astype("category")
-print(data.head)
-data.info()
-names = data.index.to_list()                        #Llista amb l'ID del pacients que tenen informacio necessaria
-predict = predict_feature(clinical_data_path, names)     #OS dels mateixos pacients
+X_test_names = pandas.merge(radiomic_data,clinical_data_X_test, on="Patient").set_index("Patient").index.to_list()
+X_train_names =  pandas.merge(radiomic_data,clinical_data_X_train, on="Patient").set_index("Patient").index.to_list()
 
+X_train = radiomic_data[radiomic_data.index.isin(X_train_names)]
+X_test = radiomic_data[radiomic_data.index.isin(X_test_names)]
+y_train = predict_feature(clinical_data_path, X_train_names)     #OS dels mateixos pacients
+y_test = predict_feature(clinical_data_path, X_test_names)
+
+print(X_train.shape)
+print(X_test.shape)
 #Anàlisi exploratori de dades:
-
-
-#Correlació:
-
-#Separació:
-#A la pràctica sempre es sol fer 0.8 i 0.2, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
-X_train, X_test, y_train, y_test = train_test_split(data, predict, train_size   = 0.7,shuffle = True, random_state= 1234)
-#Valors NA's
-#print(X_train.columns[X_train.isna().any()], X_train.columns[X_train.isna().any()].isna().sum())
-X_train = X_train.drop(X_train.columns[X_train.isna().any()],1)
-
+# ===================================================================
 #Estandarització:
-for colname in X_test.columns:
-    if colname not in X_train.columns:
-        X_test = X_test.drop(colname, axis = 1)
-
 X_train_num = X_train.select_dtypes(include=['float64', 'int'])
 col_num = X_train_num.columns
 
@@ -69,42 +55,48 @@ X_train.loc[:,col_num] = scaler.fit_transform(X_train.loc[:,col_num])
 X_test.loc[:,col_num] = scaler.fit_transform(X_test.loc[:,col_num])
 
 #Elecció alpha
-# alphas = np.linspace(0.01,40,200)
-# lasso = Lasso(max_iter=15000)
-# coefs = []
+alphas = np.linspace(0.01,5,200)
+lasso = Lasso(max_iter=15000)
+coefs = []
 
-# for a in alphas:
-#     lasso.set_params(alpha=a)
-#     lasso.fit(X_train, y_train)
-#     coefs.append(lasso.coef_)
+for a in alphas:
+    lasso.set_params(alpha=a)
+    lasso.fit(X_train, y_train)
+    coefs.append(lasso.coef_)
 
 
-# ax = plt.gca()
+ax = plt.gca()
 
-# ax.plot(alphas, coefs)
-# ax.set_xscale('log')
-# plt.axis('tight')
-# plt.xlabel('alpha')
-# plt.ylabel('Coeficients')
-# plt.title('Coeficients en funció d\' alpha')
-# plt.show()
-# plt.close()
+ax.plot(alphas, coefs)
+ax.set_xscale('log')
+plt.axis('tight')
+plt.xlabel('alpha')
+plt.ylabel('Coeficients')
+plt.title('Coeficients en funció d\' alpha')
+plt.show()
+plt.close()
 
-# zip_alphas = (list(zip(coefs, alphas)))
-# nonzero_coefs = []
-# for coef, alpha in zip_alphas:
-#     n_nonzero = np.sum(coef != 0)
-#     nonzero_coefs.append((alpha, n_nonzero))
+zip_alphas = (list(zip(coefs, alphas)))
+nonzero_coefs = []
+for coef, alpha in zip_alphas:
+    n_nonzero = np.sum(coef != 0)
+    nonzero_coefs.append((alpha, n_nonzero))
 
-# Plot the number of non-zero coefficients as a function of alpha
-# alphas, n_nonzero = zip(*nonzero_coefs)
-# plt.plot(alphas, n_nonzero)
-# plt.xlabel('alpha')
-# plt.ylabel('number of non-zero coefficients')
-# plt.xscale('log')
-# plt.show()
+alphas, n_nonzero = zip(*nonzero_coefs)
+plt.plot(alphas, n_nonzero)
+plt.xlabel('alpha')
+plt.ylabel('number of non-zero coefficients')
+plt.xscale('log')
+plt.show()
 
-Lasso_reg= Lasso(alpha=0.9, random_state=42)
+# cross-validation per l'elecció:
+alphas_propostes = np.linspace(0.1,1,20)
+Lassoreg= LassoCV(alphas= alphas_propostes,cv = 4,random_state=1234).fit(X_train,y_train)
+print("L'hiperparàmetre elegit és" , Lassoreg.alpha_)
+
+# Model final
+# ===================================================================
+Lasso_reg= Lasso(alpha=1, random_state=1234)
 Lasso_reg.fit(X_train,y_train)
 
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=r2)
@@ -128,7 +120,8 @@ for name, coef in alpha_coefs:
 
 print(counts)
 
-#Avaluació del model
+# Avaluació del model
+# ===================================================================
 # metriques amb training
 scoring = "neg_mean_squared_error"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
@@ -138,7 +131,7 @@ scoring = "r2"
 results = cross_val_score(Lasso_reg, X_train, y_train, cv=4, scoring=scoring)
 print("R squared val: ", results.mean())
 
-#Anàlisi de resiuds:
+# Anàlisi de resiuds:
 cv_prediccones = cross_val_predict(
                     estimator = Lasso_reg,
                     X         = X_train,
@@ -146,8 +139,7 @@ cv_prediccones = cross_val_predict(
                     cv        = 4
                  )
 
-# Gràfics
-# ==============================================================================
+# Gràfics per a l'anàlisi de residus
 fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(9, 5))
 
 axes[0, 0].scatter(y_train, cv_prediccones, edgecolors=(0, 0, 0), alpha = 0.4)
@@ -205,10 +197,23 @@ plt.subplots_adjust(top=0.9)
 fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
 plt.show()
 
-#Datos test
+# Dades de test
 prediccions = Lasso_reg.predict(X_test)
 df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'predicció' : prediccions})
 print(df_predicciones)
 print(r2_score(y_true= y_test,y_pred= prediccions))
 print("AIC")
 print(calculate_aic(Lasso_reg,X_test,y_test))
+
+#Gràfic a les dades test:
+plt.scatter(y_test, prediccions, edgecolors=(0, 0, 0), alpha = 0.4)
+plt.plot(
+    [y_test.min(), y_test.max()],
+    [y_test.min(), y_test.max()],
+    'k--',  lw=2
+)
+plt.title('Valor predit vs valor real', fontsize = 10, fontweight = "bold")
+plt.xlabel('Real')
+plt.ylabel('Predicció')
+plt.tick_params(labelsize = 7)
+plt.show()

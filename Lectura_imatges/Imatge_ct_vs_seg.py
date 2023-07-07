@@ -111,6 +111,9 @@ def visualize(idx, img, mask, px_size, axial_slices=0, coronal_slices=20, show=T
         axs[0, 0].imshow(img_cmapped, aspect=px_size[1]/px_size[2])
         axs[0, 1].imshow(mask_cmapped, aspect=px_size[1]/px_size[2])
         axs[1, 0].imshow(img_cmapped*(1-0.5*mask_nonzero) + mask_cmapped*0.5*mask_nonzero, aspect=px_size[1]/px_size[2])
+        axs[0, 0].axis("off")
+        axs[0, 1].axis("off")
+        axs[1, 0].axis("off")
         fig.show()
         os.makedirs(f'results/{idx}/axial/', exist_ok=True)
         fig.savefig(f'results/{idx}/axial/axial_{idx}_{slice_idx}.png')
@@ -135,6 +138,9 @@ def visualize(idx, img, mask, px_size, axial_slices=0, coronal_slices=20, show=T
         mask_cmapped[~mask_nonzero] = 0
 
         fig, axs = plt.subplots(2, 2)
+        axs[0, 0].axis("off")
+        axs[0, 1].axis("off")
+        axs[1, 0].axis("off")
         axs[0, 0].imshow(img_cmapped, aspect=px_size[0]/px_size[2])
         axs[0, 1].imshow(mask_cmapped, aspect=px_size[0]/px_size[2])
         axs[1, 0].imshow(img_cmapped*(1-0.5*mask_nonzero) + mask_cmapped*0.5*mask_nonzero, aspect=px_size[0]/px_size[2])
@@ -145,29 +151,3 @@ def visualize(idx, img, mask, px_size, axial_slices=0, coronal_slices=20, show=T
             fig.savefig(f'results/summary/coronal_{idx}_{slice_idx}.png')
             plt.show()
         plt.close()
-
-# DATASET = [{
-#     'img_folder': "/Users/pedro/Desktop/NBIA/manifest-1643035385102/HCC-TACE-Seg/HCC_003/09-12-1997-NA-AP LIVER-64595/4.000000-Recon 2 LIVER 3 PHASE AP-18688",
-#     'mask_filepath': "/Users/pedro/Desktop/NBIA/manifest-1643035385102/HCC-TACE-Seg/HCC_003/09-12-1997-NA-AP LIVER-64595/300.000000-Segmentation-45632/1-1.dcm",
-# }, {
-#     'img_folder': "/Users/pedro/Desktop/NBIA/manifest-1643035385102/HCC-TACE-Seg/HCC_004/10-06-1997-NA-LIVERPELVIS-14785/4.000000-Recon 2 LIVER 3 PHASE AP-69759",
-#     'mask_filepath': "/Users/pedro/Desktop/NBIA/manifest-1643035385102/HCC-TACE-Seg/HCC_004/10-06-1997-NA-LIVERPELVIS-14785/300.000000-Segmentation-39561/1-1.dcm",
-# }]
-
-#ROOT = "C:/TFG-code/manifest-1680446438379/HCC-TACE-Seg"
-
-# for patient_idx, img_dirpath, mask_filepath in get_paths(ROOT):
-#     print(f'Processing {patient_idx}')
-#     print(f'Img: {img_dirpath}')
-#     print(f'Mask: {mask_filepath}')
-
-#     img_dcmset, img = load_img(img_dirpath)
-#     mask_dcm, mask = load_mask(mask_filepath, img_dcmset, img)
-#     print(f'Img: {img.shape}; Mask: {mask.shape}')
-
-#     pixel_spacing = find_tag_recursively(mask_dcm, 'PixelSpacing')
-#     slice_spacing = find_tag_recursively(mask_dcm, 'SpacingBetweenSlices')
-#     px_size = (slice_spacing.value.real, pixel_spacing.value[0].real, pixel_spacing.value[1].real)
-
-#     visualize(patient_idx, img, mask, px_size=px_size, axial_slices=0, coronal_slices=1, show=True)
-
