@@ -42,8 +42,6 @@ for col in X_train.columns:
 print(X_train.head)
 X_train.info()   
 
-#Separació:
-#A la pràctica sempre es sol fer 0.8 i 0.2, però tenc molt poques mostres, no se si es petit encare que després fassem cross validation
 #Valors NA's
 print(X_train.columns[X_train.isna().any()])
 X_train = X_train.drop(X_train.columns[X_train.isna().any()],1)
@@ -143,7 +141,7 @@ plt.subplots_adjust(top=0.9)
 fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
 plt.show()
 
-#Datos test
+#Dades test
 prediccions = regressio.predict(X_test)
 prediccions_list= []
 for lista in prediccions:

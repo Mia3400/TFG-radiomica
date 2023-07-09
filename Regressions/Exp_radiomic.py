@@ -52,9 +52,10 @@ def regressio_grup_radiomic(grups, clinical_data_X_train,clinical_data_X_test,ra
         names_Xtest= dades_grup_X_test.index.to_list()                           #Llista amb l'ID del pacients que tenen informacio necessaria
         y_train = predict_feature(clinical_data_path, names_Xtrain)     #OS dels mateixos pacients
         y_test = predict_feature(clinical_data_path, names_Xtest)
-        r2_score , Aic  = fer_regressio(dades_grup_X_train,dades_grup_X_test,y_train,y_test)
+        r_valid ,r2_score , Aic  = fer_regressio(dades_grup_X_train,dades_grup_X_test,y_train,y_test)
         taula.append({
                 'Columna': grup,
+                'r_valid': r_valid,
                 'r2_score': r2_score,
                 'Aic': Aic
             })
@@ -93,17 +94,87 @@ def fer_regressio(dades_grup_X_train, dades_grup_X_test,predict_data_y_train,pre
             counts['radiomiques'] += 1
         elif 'original' not in coef and name != 0:
             counts['cliniques'] += 1
+    #dades training:
+    cv_predicciones = cross_val_predict(
+                        estimator = Lasso_reg,
+                        X         = dades_grup_X_train,
+                        y         = predict_data_y_train,
+                        cv        = 4
+                    )
+    scoring = "r2"
+    results = cross_val_score(Lasso_reg, dades_grup_X_train, predict_data_y_train, cv=4, scoring=scoring)
+    print(results)
+    r_valid =  results.mean()
+        #Grafics de residus
+    # fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(9, 5))
+
+    # axes[0, 0].scatter(predict_data_y_train, cv_predicciones, edgecolors=(0, 0, 0), alpha = 0.4)
+    # axes[0, 0].plot(
+    #     [predict_data_y_train.min(), predict_data_y_train.max()],
+    #     [predict_data_y_train.min(), predict_data_y_train.max()],
+    #     'k--', color = 'black', lw=2
+    # )
+    # axes[0, 0].set_title('Valor predit vs valor real', fontsize = 10, fontweight = "bold")
+    # axes[0, 0].set_xlabel('Real')
+    # axes[0, 0].set_ylabel('Predicció')
+    # axes[0, 0].tick_params(labelsize = 7)
+
+    # axes[0, 1].scatter(list(range(len(predict_data_y_train))), predict_data_y_train.loc[:,"OS"].tolist() - cv_predicciones,
+    #                 edgecolors=(0, 0, 0), alpha = 0.4)
+    # axes[0, 1].axhline(y = 0, linestyle = '--', color = 'black', lw=2)
+    # axes[0, 1].set_title('Residus del model', fontsize = 10, fontweight = "bold")
+    # axes[0, 1].set_xlabel('id')
+    # axes[0, 1].set_ylabel('Residu')
+    # axes[0, 1].tick_params(labelsize = 7)
+
+    # sns.histplot(
+    #     data    = predict_data_y_train.loc[:,"OS"].tolist() - cv_predicciones,
+    #     stat    = "density",
+    #     kde     = True,
+    #     line_kws= {'linewidth': 1},
+    #     color   = "firebrick",
+    #     alpha   = 0.3,
+    #     ax      = axes[1, 0]
+    # )
+
+    # axes[1, 0].set_title('Distribució residus del model', fontsize = 10,
+    #                     fontweight = "bold")
+
+    # axes[1, 0].set_xlabel("Residu")
+    # axes[1, 0].set_ylabel("densitat")
+    # axes[1, 0].tick_params(labelsize = 7)
+
+
+    # sm.qqplot(
+    #     predict_data_y_train.loc[:,"OS"].tolist() - cv_predicciones,
+    #     fit   = True,
+    #     line  = 'q',
+    #     ax    = axes[1, 1], 
+    #     color = 'firebrick',
+    #     alpha = 0.4,
+    #     lw    = 2
+    # )
+    # axes[1, 1].set_title('Q-Q residus del model', fontsize = 10, fontweight = "bold")
+    # axes[1, 1].set_xlabel("Quantils teòrics")
+    # axes[1, 1].set_ylabel("Quantils mostrals")
+    # axes[1, 1].tick_params(labelsize = 7)
+
+    # fig.tight_layout()
+    # plt.subplots_adjust(top=0.9)
+    # fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
+    # plt.show()
 
     print(counts)
     prediccions = Lasso_reg.predict(dades_grup_X_test)
     df_predicciones = pandas.DataFrame({'OS' : predict_data_y_test.loc[:,"OS"], 'predicció' : prediccions})
     #print(df_predicciones)
+
     r2_coef = r2_score(y_true= predict_data_y_test,y_pred= prediccions)
     print(r2_coef)
     print("AIC")
     Aic = calculate_aic(Lasso_reg,dades_grup_X_test,predict_data_y_test)
     print(Aic)
-    return r2_coef,Aic
+    return r_valid,r2_coef,Aic
 
 print(regressio_grup_radiomic(["firstorder","glcm","shape","glszm","glrlm","gldm","ngtdm"], clinical_data_X_test= clinical_data_X_test,clinical_data_X_train=clinical_data_X_train, radiomic_data=caract_radiomiques))
 
