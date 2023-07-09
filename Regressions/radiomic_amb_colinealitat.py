@@ -209,7 +209,7 @@ plt.subplots_adjust(top=0.9)
 fig.suptitle('Diagnòstic de residus', fontsize = 12, fontweight = "bold")
 plt.show()
 
-#Datos test
+#Dades test
 prediccions = Lasso_reg.predict(X_test)
 df_predicciones = pandas.DataFrame({'OS' : y_test.loc[:,"OS"], 'predicció' : prediccions})
 print(df_predicciones)
